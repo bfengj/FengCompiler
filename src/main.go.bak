@@ -1,0 +1,123 @@
+package main
+
+import (
+	"compiler/parser"
+	"fmt"
+	"github.com/antlr/antlr4/runtime/Go/antlr"
+	"strconv"
+)
+
+type c0Visitor struct {
+	parser.BaseC0Visitor
+	stack []int
+}
+
+func NewC0Visitor() *c0Visitor {
+	return &c0Visitor{}
+}
+func (l *c0Visitor) push(i int) {
+	l.stack = append(l.stack, i)
+}
+
+func (l *c0Visitor) pop() int {
+	if len(l.stack) < 1 {
+		panic("stack is empty unable to pop")
+	}
+
+	// Get the last value from the stack.
+	result := l.stack[len(l.stack)-1]
+
+	// Remove the last element from the stack.
+	l.stack = l.stack[:len(l.stack)-1]
+
+	return result
+}
+func (v *c0Visitor) VisitPrimary(ctx *parser.PrimaryContext) interface{} {
+	//fmt.Println(123)
+	i, err := strconv.Atoi(ctx.INTLITERAL().GetText())
+	if err != nil {
+		panic(err.Error())
+	}
+	v.push(i)
+	return nil
+}
+func (v *c0Visitor) VisitExpression(ctx *parser.ExpressionContext) interface{} {
+	fmt.Println(ctx.GetText())
+	allExpression := ctx.AllExpression()
+	exprCount := len(allExpression)
+	if exprCount == 0 {
+		v.visitRule(ctx.Primary())
+	} else {
+		for _, expr := range allExpression {
+			v.visitRule(expr)
+		}
+		var t antlr.Token = ctx.GetBop()
+		right := v.pop()
+		left := v.pop()
+		switch t.GetTokenType() {
+		case parser.C0ParserPLUS:
+			v.push(left + right)
+		case parser.C0ParserMINUS:
+			v.push(left - right)
+		case parser.C0ParserMUL:
+			v.push(left * right)
+		case parser.C0ParserDIV:
+			v.push(left / right)
+
+		default:
+			panic("should not happen")
+
+		}
+
+	}
+	return nil
+}
+
+func (v *c0Visitor) visitRule(node antlr.RuleNode) interface{} {
+	node.Accept(v)
+	return nil
+}
+func (v *c0Visitor) VisitProg(ctx *parser.ProgContext) interface{} {
+	v.visitRule(ctx.StmtList())
+	return nil
+}
+
+func main() {
+	fmt.Println("\n\n[+]start working!")
+	// Setup the input
+	is := antlr.NewInputStream("1+9/3-1")
+
+	// Create the Lexer
+	lexer := parser.NewC0Lexer(is)
+	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+
+	// Create the Parser
+	p := parser.NewC0Parser(stream)
+	v := NewC0Visitor()
+	p.Expression().Accept(v)
+	fmt.Println(v.pop())
+	//p.AddParseListener()
+	//p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
+	//p.BuildParseTrees = true
+	//tree := p.Prog()
+	//fmt.Println(reflect.TypeOf(p))
+	// Finally parse the expression
+	//antlr.ParseTreeWalkerDefault.Walk(&c0Listener{}, tree)
+
+}
+
+/*	// Setup the input
+	is := antlr.NewInputStream("int age = 12;")
+
+	// Create the Lexer
+	lexer := parser.NewC0Lexer(is)
+
+	// Read all tokens
+	for {
+		t := lexer.NextToken()
+		if t.GetTokenType() == antlr.TokenEOF {
+			break
+		}
+		fmt.Printf("%s (%q)\n",
+			lexer.SymbolicNames[t.GetTokenType()], t.GetText())
+	}*/
